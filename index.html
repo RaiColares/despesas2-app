@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro de Despesas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+
+<!-- ============ TELA DE LOGIN ============ -->
+<div id="tela-login">
+  <div class="login-card">
+    <div class="marca">$</div>
+    <h1>Registro de Despesas</h1>
+    <p>Entre com suas credenciais para continuar</p>
+    <div class="campo">
+      <label for="login-usuario">Usuário</label>
+      <input id="login-usuario" type="text" autocomplete="username">
+    </div>
+    <div class="campo">
+      <label for="login-senha">Senha</label>
+      <input id="login-senha" type="password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="fazerLogin()">Entrar</button>
+    <div class="erro-msg" id="login-erro"></div>
+  </div>
+</div>
+
+<!-- ============ APP PRINCIPAL ============ -->
+<div id="app">
+  <div class="topo-app">
+    <div class="titulo">
+      <div class="marca">$</div>
+      <h1>Registro de Despesas</h1>
+    </div>
+    <button class="btn btn-sair" onclick="sair()">Sair</button>
+  </div>
+
+  <!-- navegador de mês -->
+  <div class="nav-mes">
+    <button class="seta" onclick="mudarMes(-1)" aria-label="Mês anterior">&#8592;</button>
+    <div class="centro">
+      <div class="ref serif" id="lbl-mes-ref">—</div>
+      <div class="pag">Pagamento em <span id="lbl-mes-pag">—</span></div>
+    </div>
+    <button class="seta" onclick="mudarMes(1)" aria-label="Próximo mês">&#8594;</button>
+  </div>
+
+  <!-- cards de resumo -->
+  <div class="grid-cards">
+    <div class="card">
+      <div class="rotulo" id="lbl-saldo-rotulo">Saldo do Mês Anterior</div>
+      <div class="valor" id="val-saldo-anterior">R$ 0,00</div>
+    </div>
+    <div class="card">
+      <div class="rotulo">Débito do Mês Atual</div>
+      <div class="valor" id="val-debito-mes">R$ 0,00</div>
+    </div>
+    <div class="card destaque">
+      <div class="rotulo">Débito Geral</div>
+      <div class="valor" id="val-debito-geral">R$ 0,00</div>
+    </div>
+    <div class="card">
+      <div class="rotulo">Total Pago</div>
+      <div class="valor" id="val-total-pago">R$ 0,00</div>
+    </div>
+    <div class="card">
+      <div class="rotulo" id="lbl-pendente-rotulo">Saldo Pendente</div>
+      <div class="valor" id="val-pendente">R$ 0,00</div>
+    </div>
+    <div class="card editavel">
+      <div class="rotulo">Vencimento (dia)</div>
+      <div class="linha-edit">
+        <input type="number" id="input-vencimento" min="1" max="31" style="width:70px;">
+        <button class="mini-btn" onclick="salvarVencimento()">Salvar</button>
+      </div>
+      <button class="avulso-toggle" onclick="alternarAvulso()">+ Valor avulso</button>
+      <div class="avulso-campos" id="campos-avulso">
+        <input type="number" id="input-avulso-valor" placeholder="Valor" step="0.01">
+        <input type="date" id="input-avulso-data">
+        <button class="mini-btn" onclick="salvarAvulso()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- formulário de novo registro -->
+  <div class="painel">
+    <div class="painel-cabecalho" onclick="alternarPainelForm()">
+      <h2>&#43; Registrar nova despesa ou empréstimo</h2>
+      <span id="seta-form">&#9660;</span>
+    </div>
+    <div class="painel-corpo" id="painel-form-corpo">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Data da compra/empréstimo</label>
+          <input type="date" id="f-data">
+        </div>
+        <div class="campo campo-full">
+          <label>Descrição</label>
+          <input type="text" id="f-descricao" placeholder="Ex: Notebook, empréstimo pessoal...">
+        </div>
+        <div class="campo">
+          <label>Valor total</label>
+          <input type="number" id="f-valor-total" step="0.01" placeholder="0,00" oninput="calcularParcela()">
+        </div>
+        <div class="campo">
+          <label>Total de parcelas</label>
+          <input type="number" id="f-total-parcelas" min="1" value="1" oninput="calcularParcela()">
+        </div>
+        <div class="campo">
+          <label>Valor da parcela</label>
+          <input type="number" id="f-valor-parcela" step="0.01" placeholder="0,00">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:auto;" onclick="registrarCompra()">Registrar despesa</button>
+    </div>
+  </div>
+
+  <!-- lista de registros do mês -->
+  <div class="lista-titulo">Registros de <span id="lbl-mes-lista">—</span></div>
+  <div id="lista-registros"></div>
+</div>
+
+<!-- ============ MODAL DE CONFIRMAÇÃO ============ -->
+<div class="modal-fundo" id="modal-confirmar">
+  <div class="modal-caixa">
+    <h3 id="modal-confirmar-titulo">Confirmar ação</h3>
+    <p id="modal-confirmar-texto">Tem certeza?</p>
+    <div class="modal-acoes">
+      <button class="btn btn-secundario" onclick="fecharModalConfirmar()">Cancelar</button>
+      <button class="btn btn-perigo" id="modal-confirmar-btn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL DE EDIÇÃO ============ -->
+<div class="modal-fundo" id="modal-editar">
+  <div class="modal-caixa">
+    <h3>Editar registro</h3>
+    <div class="campo">
+      <label>Descrição</label>
+      <input type="text" id="edit-descricao">
+    </div>
+    <div class="campo">
+      <label>Valor da parcela</label>
+      <input type="number" id="edit-valor-parcela" step="0.01">
+    </div>
+    <div class="campo">
+      <label>Data da compra</label>
+      <input type="date" id="edit-data-compra">
+    </div>
+    <div class="modal-acoes">
+      <button class="btn btn-secundario" onclick="fecharModalEditar()">Cancelar</button>
+      <button class="btn btn-primary" style="width:auto;" onclick="salvarEdicao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="./src/config.js"></script>
+<script src="./src/script.js"></script>
+</body>
+</html>

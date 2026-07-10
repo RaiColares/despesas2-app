@@ -1,0 +1,396 @@
+/**
+ * REGISTRO DE DESPESAS — API (Google Apps Script)
+ * -------------------------------------------------
+ * Este arquivo funciona como uma API JSON. Ele NÃO serve mais o HTML —
+ * quem serve o HTML/CSS/JS agora é o GitHub Pages (pasta /site). Este
+ * projeto aqui só recebe requisições (fetch) do site e lê/grava na
+ * planilha do Google Sheets.
+ *
+ * Abas usadas na planilha (criadas automaticamente no primeiro acesso):
+ *  - "Parcelas"   -> cada linha é UMA parcela de UMA compra/empréstimo
+ *  - "MesConfig"  -> vencimento e valor avulso definidos por mês
+ */
+
+// ======================= CONFIGURAÇÃO =======================
+
+const USUARIO_VALIDO = 'Aline';
+const SENHA_VALIDA = 'aurora08';
+
+const ABA_PARCELAS = 'Parcelas';
+const ABA_MESCONFIG = 'MesConfig';
+
+const COLS_PARCELAS = [
+  'ID', 'ID_Compra', 'Descricao', 'Data_Compra', 'Valor_Total',
+  'Parcela_Atual', 'Total_Parcelas', 'Valor_Parcela', 'Mes_Referencia',
+  'Status_Pago', 'Valor_Pago', 'Data_Pagamento', 'Finalizado'
+];
+
+const COLS_MESCONFIG = ['Mes', 'Vencimento', 'Valor_Avulso', 'Data_Avulso'];
+
+// ======================= ENTRADA DA API (doGet / doPost) =======================
+
+/**
+ * Requisições de LEITURA vêm por GET, como:
+ * .../exec?action=getMonthData&mes=2026-08
+ */
+function doGet(e) {
+  const params = (e && e.parameter) ? e.parameter : {};
+  return responderJson_(executarAcao_(params.action, params));
+}
+
+/**
+ * Requisições de ESCRITA (ou leitura, tanto faz) vêm por POST, com corpo
+ * em JSON: { "action": "addCompra", "payload": {...} }
+ */
+function doPost(e) {
+  let body = {};
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    body = { action: (e.parameter && e.parameter.action), payload: e.parameter };
+  }
+  return responderJson_(executarAcao_(body.action, body.payload || {}));
+}
+
+function responderJson_(objeto) {
+  return ContentService
+    .createTextOutput(JSON.stringify(objeto))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function executarAcao_(action, payload) {
+  payload = payload || {};
+  try {
+    switch (action) {
+      case 'login':
+        return { ok: login(payload.usuario, payload.senha) };
+      case 'getMonthData':
+        return { ok: true, dados: getMonthData(payload.mes) };
+      case 'addCompra':
+        return addCompra(payload);
+      case 'updateParcela':
+        return updateParcela(payload.id, payload.mudancas || {});
+      case 'editarParcela':
+        return editarParcela(payload.id, payload.dados || {});
+      case 'excluirParcela':
+        return excluirParcela(payload.id);
+      case 'setMesConfig':
+        return setMesConfig(payload.mes, payload.dados || {});
+      case 'debugInfo':
+        return { ok: true, dados: debugInfo() };
+      default:
+        return { ok: false, erro: 'Ação desconhecida: ' + action };
+    }
+  } catch (err) {
+    return { ok: false, erro: err.message };
+  }
+}
+
+// ======================= AUTENTICAÇÃO =======================
+
+function login(usuario, senha) {
+  return usuario === USUARIO_VALIDO && senha === SENHA_VALIDA;
+}
+
+// ======================= HELPERS DE PLANILHA =======================
+
+function getSheet_(nome, cols) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(nome);
+  if (!sheet) {
+    sheet = ss.insertSheet(nome);
+    sheet.appendRow(cols);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Colunas que representam um "mês" no formato texto "YYYY-MM". O Google
+// Sheets às vezes converte esse texto automaticamente para uma data real
+// dentro da célula; aqui a gente normaliza de volta para "YYYY-MM" para
+// que as comparações por string continuem funcionando.
+const COLUNAS_MES_ = ['Mes_Referencia', 'Mes'];
+
+function sheetToObjects_(sheet, cols) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, cols.length).getValues();
+  const out = [];
+  values.forEach((row, idx) => {
+    if (row.every(c => c === '' || c === null)) return;
+    const obj = {};
+    cols.forEach((c, i) => {
+      let valor = row[i];
+      if (COLUNAS_MES_.indexOf(c) !== -1 && valor instanceof Date) {
+        valor = mesKeyFromDate_(valor);
+      }
+      obj[c] = valor;
+    });
+    obj._row = idx + 2;
+    out.push(obj);
+  });
+  return out;
+}
+
+function gerarId_() {
+  return Utilities.getUuid();
+}
+
+// ======================= HELPERS DE MÊS (YYYY-MM) =======================
+
+function mesKeyFromDate_(date) {
+  const d = (date instanceof Date) ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = ('0' + (d.getMonth() + 1)).slice(-2);
+  return y + '-' + m;
+}
+
+function addMonths_(mesKey, n) {
+  const [y, m] = mesKey.split('-').map(Number);
+  const d = new Date(y, (m - 1) + n, 1);
+  return mesKeyFromDate_(d);
+}
+
+const NOMES_MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+function formatarMes_(mesKey) {
+  const [y, m] = mesKey.split('-').map(Number);
+  return NOMES_MESES[m - 1] + ' de ' + y;
+}
+
+// ======================= LÓGICA FINANCEIRA =======================
+
+/**
+ * Convenção: valor positivo = "Saldo" (crédito); valor negativo = "Débito".
+ */
+function getSaldoAnterior_(mesAlvo, parcelasPorMes, configPorMes) {
+  const meses = Object.keys(parcelasPorMes).concat(Object.keys(configPorMes));
+  if (meses.length === 0) return 0;
+  meses.sort();
+  let mesAtual = meses[0];
+
+  if (mesAtual >= mesAlvo) return 0;
+
+  let saldo = 0;
+  while (mesAtual < mesAlvo) {
+    const parcelas = parcelasPorMes[mesAtual] || [];
+    const totalDebitoMesAtual = parcelas.reduce((s, p) => s + (Number(p.Valor_Parcela) || 0), 0);
+    const totalDebitoGeral = totalDebitoMesAtual - saldo;
+
+    const cfg = configPorMes[mesAtual] || {};
+    const valorAvulso = Number(cfg.Valor_Avulso) || 0;
+    const totalPago = parcelas.reduce((s, p) => {
+      return s + (p.Status_Pago === true ? (Number(p.Valor_Pago) || Number(p.Valor_Parcela) || 0) : 0);
+    }, 0) + valorAvulso;
+
+    saldo = totalDebitoGeral - totalPago;
+    mesAtual = addMonths_(mesAtual, 1);
+  }
+  return saldo;
+}
+
+function agruparPorMes_(lista, chave) {
+  const mapa = {};
+  lista.forEach(item => {
+    const mes = item[chave];
+    if (!mapa[mes]) mapa[mes] = [];
+    mapa[mes].push(item);
+  });
+  return mapa;
+}
+
+function agruparConfigPorMes_(lista) {
+  const mapa = {};
+  lista.forEach(item => { mapa[item.Mes] = item; });
+  return mapa;
+}
+
+function getMonthData(mesKey) {
+  const sheetParcelas = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const sheetConfig = getSheet_(ABA_MESCONFIG, COLS_MESCONFIG);
+
+  const todasParcelas = sheetToObjects_(sheetParcelas, COLS_PARCELAS);
+  const todosConfigs = sheetToObjects_(sheetConfig, COLS_MESCONFIG);
+
+  const parcelasPorMes = agruparPorMes_(todasParcelas, 'Mes_Referencia');
+  const configPorMes = agruparConfigPorMes_(todosConfigs);
+
+  const parcelasDoMes = (parcelasPorMes[mesKey] || []).sort((a, b) => {
+    return new Date(a.Data_Compra) - new Date(b.Data_Compra);
+  });
+
+  let cfg = configPorMes[mesKey];
+  if (!cfg) {
+    cfg = { Mes: mesKey, Vencimento: 10, Valor_Avulso: '', Data_Avulso: '' };
+  }
+
+  const totalDebitoMesAtual = parcelasDoMes.reduce((s, p) => s + (Number(p.Valor_Parcela) || 0), 0);
+  const saldoAnterior = getSaldoAnterior_(mesKey, parcelasPorMes, configPorMes);
+  const totalDebitoGeral = totalDebitoMesAtual - saldoAnterior;
+
+  const valorAvulso = Number(cfg.Valor_Avulso) || 0;
+  const totalPago = parcelasDoMes.reduce((s, p) => {
+    return s + (p.Status_Pago === true ? (Number(p.Valor_Pago) || Number(p.Valor_Parcela) || 0) : 0);
+  }, 0) + valorAvulso;
+
+  const saldoPendente = totalDebitoGeral - totalPago;
+
+  return {
+    mesReferencia: mesKey,
+    mesReferenciaLabel: formatarMes_(mesKey),
+    mesPagamento: addMonths_(mesKey, 1),
+    mesPagamentoLabel: formatarMes_(addMonths_(mesKey, 1)),
+    vencimento: cfg.Vencimento || 10,
+    valorAvulso: cfg.Valor_Avulso === '' ? null : cfg.Valor_Avulso,
+    dataAvulso: cfg.Data_Avulso || '',
+    saldoAnterior: saldoAnterior,
+    totalDebitoMesAtual: totalDebitoMesAtual,
+    totalDebitoGeral: totalDebitoGeral,
+    totalPago: totalPago,
+    saldoPendente: saldoPendente,
+    parcelas: parcelasDoMes.map(p => ({
+      id: p.ID,
+      idCompra: p.ID_Compra,
+      descricao: p.Descricao,
+      dataCompra: p.Data_Compra,
+      valorTotal: p.Valor_Total,
+      parcelaAtual: p.Parcela_Atual,
+      totalParcelas: p.Total_Parcelas,
+      valorParcela: p.Valor_Parcela,
+      pago: p.Status_Pago === true,
+      valorPago: p.Valor_Pago,
+      dataPagamento: p.Data_Pagamento,
+      finalizado: p.Finalizado === true
+    }))
+  };
+}
+
+// ======================= CRUD: COMPRAS / PARCELAS =======================
+
+function addCompra(dados) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const idCompra = gerarId_();
+  const mesCompra = mesKeyFromDate_(dados.dataCompra);
+  const totalParcelas = Number(dados.totalParcelas) || 1;
+  const valorParcela = Number(dados.valorParcela);
+  const valorTotal = Number(dados.valorTotal);
+
+  const linhas = [];
+  for (let i = 1; i <= totalParcelas; i++) {
+    const mesRef = addMonths_(mesCompra, i);
+    linhas.push([
+      gerarId_(), idCompra, dados.descricao, dados.dataCompra, valorTotal,
+      i, totalParcelas, valorParcela, mesRef,
+      false, '', '', false
+    ]);
+  }
+  sheet.getRange(sheet.getLastRow() + 1, 1, linhas.length, COLS_PARCELAS.length).setValues(linhas);
+  return { ok: true, idCompra: idCompra };
+}
+
+function encontrarLinhaPorId_(sheet, id) {
+  const dados = sheetToObjects_(sheet, COLS_PARCELAS);
+  return dados.find(d => d.ID === id);
+}
+
+function updateParcela(id, mudancas) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const linha = encontrarLinhaPorId_(sheet, id);
+  if (!linha) return { ok: false, erro: 'Registro não encontrado.' };
+
+  const colIndex = {};
+  COLS_PARCELAS.forEach((c, i) => colIndex[c] = i + 1);
+
+  if (mudancas.pago !== undefined) {
+    sheet.getRange(linha._row, colIndex['Status_Pago']).setValue(mudancas.pago);
+    if (mudancas.pago) {
+      const valorPago = mudancas.valorPago !== undefined && mudancas.valorPago !== ''
+        ? Number(mudancas.valorPago) : Number(linha.Valor_Parcela);
+      sheet.getRange(linha._row, colIndex['Valor_Pago']).setValue(valorPago);
+      sheet.getRange(linha._row, colIndex['Data_Pagamento']).setValue(mudancas.dataPagamento || new Date());
+      if (Number(linha.Parcela_Atual) === Number(linha.Total_Parcelas)) {
+        sheet.getRange(linha._row, colIndex['Finalizado']).setValue(true);
+      }
+    } else {
+      sheet.getRange(linha._row, colIndex['Valor_Pago']).setValue('');
+      sheet.getRange(linha._row, colIndex['Data_Pagamento']).setValue('');
+      sheet.getRange(linha._row, colIndex['Finalizado']).setValue(false);
+    }
+  }
+
+  if (mudancas.valorPago !== undefined && mudancas.pago === undefined) {
+    sheet.getRange(linha._row, colIndex['Valor_Pago']).setValue(Number(mudancas.valorPago));
+  }
+  if (mudancas.dataPagamento !== undefined && mudancas.pago === undefined) {
+    sheet.getRange(linha._row, colIndex['Data_Pagamento']).setValue(mudancas.dataPagamento);
+  }
+
+  return { ok: true };
+}
+
+function editarParcela(id, dados) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const linha = encontrarLinhaPorId_(sheet, id);
+  if (!linha) return { ok: false, erro: 'Registro não encontrado.' };
+
+  const colIndex = {};
+  COLS_PARCELAS.forEach((c, i) => colIndex[c] = i + 1);
+
+  if (dados.descricao !== undefined) sheet.getRange(linha._row, colIndex['Descricao']).setValue(dados.descricao);
+  if (dados.valorParcela !== undefined) sheet.getRange(linha._row, colIndex['Valor_Parcela']).setValue(Number(dados.valorParcela));
+  if (dados.dataCompra !== undefined) sheet.getRange(linha._row, colIndex['Data_Compra']).setValue(dados.dataCompra);
+  if (dados.valorTotal !== undefined) sheet.getRange(linha._row, colIndex['Valor_Total']).setValue(Number(dados.valorTotal));
+
+  return { ok: true };
+}
+
+function excluirParcela(id) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const linha = encontrarLinhaPorId_(sheet, id);
+  if (!linha) return { ok: false, erro: 'Registro não encontrado.' };
+  sheet.deleteRow(linha._row);
+  return { ok: true };
+}
+
+// ======================= CONFIGURAÇÃO DO MÊS =======================
+
+function setMesConfig(mesKey, dados) {
+  const sheet = getSheet_(ABA_MESCONFIG, COLS_MESCONFIG);
+  const registros = sheetToObjects_(sheet, COLS_MESCONFIG);
+  const existente = registros.find(r => r.Mes === mesKey);
+
+  const colIndex = {};
+  COLS_MESCONFIG.forEach((c, i) => colIndex[c] = i + 1);
+
+  if (existente) {
+    if (dados.vencimento !== undefined) sheet.getRange(existente._row, colIndex['Vencimento']).setValue(dados.vencimento);
+    if (dados.valorAvulso !== undefined) sheet.getRange(existente._row, colIndex['Valor_Avulso']).setValue(dados.valorAvulso === '' ? '' : Number(dados.valorAvulso));
+    if (dados.dataAvulso !== undefined) sheet.getRange(existente._row, colIndex['Data_Avulso']).setValue(dados.dataAvulso);
+  } else {
+    sheet.appendRow([
+      mesKey,
+      dados.vencimento !== undefined ? dados.vencimento : 10,
+      dados.valorAvulso !== undefined ? dados.valorAvulso : '',
+      dados.dataAvulso !== undefined ? dados.dataAvulso : ''
+    ]);
+  }
+  return { ok: true };
+}
+
+// ======================= DIAGNÓSTICO =======================
+
+function debugInfo() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const dados = sheetToObjects_(sheet, COLS_PARCELAS);
+  return {
+    planilhaId: ss.getId(),
+    planilhaNome: ss.getName(),
+    totalLinhasNaAba: sheet.getLastRow(),
+    totalRegistrosLidos: dados.length,
+    primeirosRegistros: dados.slice(0, 3)
+  };
+}
