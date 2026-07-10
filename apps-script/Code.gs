@@ -22,7 +22,7 @@ const ABA_MESCONFIG = 'MesConfig';
 const COLS_PARCELAS = [
   'ID', 'ID_Compra', 'Descricao', 'Data_Compra', 'Valor_Total',
   'Parcela_Atual', 'Total_Parcelas', 'Valor_Parcela', 'Mes_Referencia',
-  'Status_Pago', 'Valor_Pago', 'Data_Pagamento', 'Finalizado'
+  'Status_Pago', 'Valor_Pago', 'Data_Pagamento', 'Finalizado', 'EhEmprestimo'
 ];
 
 const COLS_MESCONFIG = ['ID', 'Mes', 'Vencimento', 'Valor_Avulso', 'Data_Avulso'];
@@ -290,7 +290,8 @@ function getMonthData(mesKey) {
       pago: p.Status_Pago === true,
       valorPago: p.Valor_Pago,
       dataPagamento: p.Data_Pagamento,
-      finalizado: p.Finalizado === true
+      finalizado: p.Finalizado === true,
+      ehEmprestimo: p.EhEmprestimo === true
     }))
   };
 }
@@ -308,10 +309,11 @@ function addCompra(dados) {
   const linhas = [];
   for (let i = 1; i <= totalParcelas; i++) {
     const mesRef = addMonths_(mesCompra, i);
+    const ehEmprestimo = dados.ehEmprestimo === true || dados.ehEmprestimo === 'true';
     linhas.push([
       gerarId_(), idCompra, dados.descricao, dados.dataCompra, valorTotal,
       i, totalParcelas, valorParcela, mesRef,
-      false, '', '', false
+      false, '', '', false, ehEmprestimo
     ]);
   }
   sheet.getRange(sheet.getLastRow() + 1, 1, linhas.length, COLS_PARCELAS.length).setValues(linhas);
@@ -370,6 +372,7 @@ function editarParcela(id, dados) {
   if (dados.valorParcela !== undefined) sheet.getRange(linha._row, colIndex['Valor_Parcela']).setValue(Number(dados.valorParcela));
   if (dados.dataCompra !== undefined) sheet.getRange(linha._row, colIndex['Data_Compra']).setValue(dados.dataCompra);
   if (dados.valorTotal !== undefined) sheet.getRange(linha._row, colIndex['Valor_Total']).setValue(Number(dados.valorTotal));
+  if (dados.ehEmprestimo !== undefined) sheet.getRange(linha._row, colIndex['EhEmprestimo']).setValue(dados.ehEmprestimo === true || dados.ehEmprestimo === 'true');
 
   return { ok: true };
 }

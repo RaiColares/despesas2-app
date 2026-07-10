@@ -35,6 +35,7 @@ let mesAtual = mesKeyHoje();
 let dadosMes = null;
 let idParaExcluir = null;
 let idParaEditar = null;
+let filtroAtivo = 'tudo';
 
 function mesKeyHoje(){
   const d = new Date();
@@ -117,6 +118,13 @@ function paraInputDate(v){
   return d.toISOString().slice(0,10);
 }
 
+function filtrar(tipo){
+  filtroAtivo = tipo;
+  document.querySelectorAll('.filtro-btn').forEach(function(b){ b.classList.remove('ativo'); });
+  document.getElementById('filtro-' + tipo).classList.add('ativo');
+  renderizarLista(dadosMes.parcelas);
+}
+
 function renderizarMes(dados){
   dadosMes = dados;
   document.getElementById('lbl-mes-ref').textContent = dados.mesReferenciaLabel;
@@ -178,16 +186,37 @@ function renderizarAvulsos(avulsos){
 
 function renderizarLista(parcelas){
   const container = document.getElementById('lista-registros');
-  if(!parcelas || parcelas.length === 0){
+
+  // calcular totais dos filtros
+  const totalTudo = parcelas.reduce(function(s, p){ return s + Number(p.valorParcela); }, 0);
+  const totalCompras = parcelas.filter(function(p){ return !p.ehEmprestimo; }).reduce(function(s, p){ return s + Number(p.valorParcela); }, 0);
+  const totalEmprestimos = parcelas.filter(function(p){ return p.ehEmprestimo; }).reduce(function(s, p){ return s + Number(p.valorParcela); }, 0);
+
+  document.getElementById('total-tudo').textContent = formatarMoeda(totalTudo);
+  document.getElementById('total-compras').textContent = formatarMoeda(totalCompras);
+  document.getElementById('total-emprestimos').textContent = formatarMoeda(totalEmprestimos);
+
+  // aplicar filtro
+  var filtradas = parcelas;
+  if(filtroAtivo === 'compras'){
+    filtradas = parcelas.filter(function(p){ return !p.ehEmprestimo; });
+  } else if(filtroAtivo === 'emprestimos'){
+    filtradas = parcelas.filter(function(p){ return p.ehEmprestimo; });
+  }
+
+  if(!filtradas || filtradas.length === 0){
     container.innerHTML = '<div class="vazio">Nenhum registro para este mês ainda.</div>';
     return;
   }
-  container.innerHTML = parcelas.map(function(p){
+
+  container.innerHTML = filtradas.map(function(p){
     const pagoClasse = p.pago ? 'registro pago' : 'registro';
-    const badge = p.finalizado ? '<span class="badge-finalizado">Finalizado</span>' : '';
+    var badges = '';
+    if(p.finalizado) badges += '<span class="badge-finalizado">Finalizado</span> ';
+    if(p.ehEmprestimo) badges += '<span class="badge-emprestimo">Empréstimo</span>';
     return '<div class="'+pagoClasse+'" data-id="'+p.id+'">' +
       '<div class="principal">' +
-        '<div class="desc">'+escapeHtml(p.descricao)+' '+badge+'</div>' +
+        '<div class="desc">'+escapeHtml(p.descricao)+' '+badges+'</div>' +
         '<div class="meta">'+formatarDataBR(p.dataCompra)+' &middot; Parcela '+p.parcelaAtual+'/'+p.totalParcelas+'</div>' +
       '</div>' +
       '<div class="valores">' +
@@ -313,12 +342,15 @@ function registrarCompra(){
     return;
   }
 
+  const ehEmprestimo = document.getElementById('f-emprestimo').checked;
+
   apiPost('addCompra', {
     dataCompra: data,
     descricao: descricao,
     valorTotal: valorTotal,
     totalParcelas: totalParcelas,
-    valorParcela: valorParcela
+    valorParcela: valorParcela,
+    ehEmprestimo: ehEmprestimo
   }).then(function(){
     mostrarToast('Despesa registrada');
     document.getElementById('f-data').value = '';
@@ -326,6 +358,7 @@ function registrarCompra(){
     document.getElementById('f-valor-total').value = '';
     document.getElementById('f-total-parcelas').value = '1';
     document.getElementById('f-valor-parcela').value = '';
+    document.getElementById('f-emprestimo').checked = false;
     carregarMes();
   }).catch(erroGenerico);
 }

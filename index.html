@@ -103,7 +103,14 @@
         </div>
         <div class="campo campo-full">
           <label>Descrição</label>
-          <input type="text" id="f-descricao" placeholder="Ex: Notebook, empréstimo pessoal...">
+          <input type="text" id="f-descricao" placeholder="Ex: Notebook, Geladeira...">
+        </div>
+        <div class="campo campo-toggle">
+          <label class="toggle-emp">
+            <input type="checkbox" id="f-emprestimo">
+            <span class="toggle-slider"></span>
+            É empréstimo?
+          </label>
         </div>
         <div class="campo">
           <label>Valor total</label>
@@ -120,6 +127,19 @@
       </div>
       <button class="btn btn-primary" style="width:auto;" onclick="registrarCompra()">Registrar despesa</button>
     </div>
+  </div>
+
+  <!-- filtros -->
+  <div class="filtros">
+    <button class="filtro-btn ativo" onclick="filtrar('tudo')" id="filtro-tudo">
+      Tudo · <span id="total-tudo">R$ 0</span>
+    </button>
+    <button class="filtro-btn" onclick="filtrar('compras')" id="filtro-compras">
+      Compras · <span id="total-compras">R$ 0</span>
+    </button>
+    <button class="filtro-btn" onclick="filtrar('emprestimos')" id="filtro-emprestimos">
+      Empréstimos · <span id="total-emprestimos">R$ 0</span>
+    </button>
   </div>
 
   <!-- lista de registros do mês -->
