@@ -337,12 +337,12 @@ function registrarCompra(){
   const totalParcelas = document.getElementById('f-total-parcelas').value;
   const valorParcela = document.getElementById('f-valor-parcela').value;
 
+  const ehEmprestimo = document.getElementById('f-emprestimo').checked;
+  if(ehEmprestimo && !descricao) descricao = 'Empréstimo';
   if(!data || !descricao || !valorTotal || !totalParcelas || !valorParcela){
     mostrarToast('Preencha todos os campos');
     return;
   }
-
-  const ehEmprestimo = document.getElementById('f-emprestimo').checked;
 
   apiPost('addCompra', {
     dataCompra: data,
