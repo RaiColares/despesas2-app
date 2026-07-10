@@ -77,12 +77,15 @@
         <input type="number" id="input-vencimento" min="1" max="31" style="width:70px;">
         <button class="mini-btn" onclick="salvarVencimento()">Salvar</button>
       </div>
-      <button class="avulso-toggle" onclick="alternarAvulso()">+ Valor avulso</button>
-      <div class="avulso-campos" id="campos-avulso">
-        <input type="number" id="input-avulso-valor" placeholder="Valor" step="0.01">
-        <input type="date" id="input-avulso-data">
-        <button class="mini-btn" onclick="salvarAvulso()">OK</button>
+      <button class="avulso-toggle" onclick="abrirModalAvulso()">+ Pagamento avulso</button>
+    </div>
+
+    <div class="card card-avulsos">
+      <div class="card-header">
+        <div class="rotulo">Pagamentos Avulsos</div>
+        <button class="mini-btn" onclick="abrirModalAvulso()">+ Adicionar</button>
       </div>
+      <div class="lista-avulsos" id="lista-avulsos"></div>
     </div>
   </div>
 
@@ -155,6 +158,25 @@
     <div class="modal-acoes">
       <button class="btn btn-secundario" onclick="fecharModalEditar()">Cancelar</button>
       <button class="btn btn-primary" style="width:auto;" onclick="salvarEdicao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL DE PAGAMENTO AVULSO ============ -->
+<div class="modal-fundo" id="modal-avulso">
+  <div class="modal-caixa">
+    <h3 id="modal-avulso-titulo">Adicionar Pagamento Avulso</h3>
+    <div class="campo">
+      <label>Valor</label>
+      <input type="number" id="avulso-valor" step="0.01" placeholder="0,00">
+    </div>
+    <div class="campo">
+      <label>Data</label>
+      <input type="date" id="avulso-data">
+    </div>
+    <div class="modal-acoes">
+      <button class="btn btn-secundario" onclick="fecharModalAvulso()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-salvar-avulso" onclick="salvarAvulso()">Adicionar</button>
     </div>
   </div>
 </div>

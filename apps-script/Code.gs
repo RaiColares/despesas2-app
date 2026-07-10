@@ -18,6 +18,7 @@ const SENHA_VALIDA = 'aurora08';
 
 const ABA_PARCELAS = 'Parcelas';
 const ABA_MESCONFIG = 'MesConfig';
+const ABA_AVULSOS = 'Avulsos';
 
 const COLS_PARCELAS = [
   'ID', 'ID_Compra', 'Descricao', 'Data_Compra', 'Valor_Total',
@@ -26,6 +27,7 @@ const COLS_PARCELAS = [
 ];
 
 const COLS_MESCONFIG = ['Mes', 'Vencimento', 'Valor_Avulso', 'Data_Avulso'];
+const COLS_AVULSOS = ['ID', 'Mes', 'Valor', 'Data'];
 
 // ======================= ENTRADA DA API (doGet / doPost) =======================
 
@@ -76,6 +78,12 @@ function executarAcao_(action, payload) {
         return excluirParcela(payload.id);
       case 'setMesConfig':
         return setMesConfig(payload.mes, payload.dados || {});
+      case 'addAvulso':
+        return addAvulso(payload);
+      case 'editarAvulso':
+        return editarAvulso(payload.id, payload.dados || {});
+      case 'excluirAvulso':
+        return excluirAvulso(payload.id);
       case 'debugInfo':
         return { ok: true, dados: debugInfo() };
       default:
@@ -166,8 +174,9 @@ function formatarMes_(mesKey) {
 /**
  * Convenção: valor positivo = "Saldo" (crédito); valor negativo = "Débito".
  */
-function getSaldoAnterior_(mesAlvo, parcelasPorMes, configPorMes) {
-  const meses = Object.keys(parcelasPorMes).concat(Object.keys(configPorMes));
+function getSaldoAnterior_(mesAlvo, parcelasPorMes, configPorMes, avulsosPorMes) {
+  const mesesSet = new Set(Object.keys(parcelasPorMes).concat(Object.keys(configPorMes)).concat(Object.keys(avulsosPorMes)));
+  const meses = Array.from(mesesSet);
   if (meses.length === 0) return 0;
   meses.sort();
   let mesAtual = meses[0];
@@ -180,11 +189,11 @@ function getSaldoAnterior_(mesAlvo, parcelasPorMes, configPorMes) {
     const totalDebitoMesAtual = parcelas.reduce((s, p) => s + (Number(p.Valor_Parcela) || 0), 0);
     const totalDebitoGeral = totalDebitoMesAtual - saldo;
 
-    const cfg = configPorMes[mesAtual] || {};
-    const valorAvulso = Number(cfg.Valor_Avulso) || 0;
+    const avulsos = avulsosPorMes[mesAtual] || [];
+    const totalAvulsos = avulsos.reduce((s, a) => s + (Number(a.Valor) || 0), 0);
     const totalPago = parcelas.reduce((s, p) => {
       return s + (p.Status_Pago === true ? (Number(p.Valor_Pago) || Number(p.Valor_Parcela) || 0) : 0);
-    }, 0) + valorAvulso;
+    }, 0) + totalAvulsos;
 
     saldo = totalDebitoGeral - totalPago;
     mesAtual = addMonths_(mesAtual, 1);
@@ -214,9 +223,11 @@ function getMonthData(mesKey) {
 
   const todasParcelas = sheetToObjects_(sheetParcelas, COLS_PARCELAS);
   const todosConfigs = sheetToObjects_(sheetConfig, COLS_MESCONFIG);
+  const todosAvulsos = sheetToObjects_(getSheet_(ABA_AVULSOS, COLS_AVULSOS), COLS_AVULSOS);
 
   const parcelasPorMes = agruparPorMes_(todasParcelas, 'Mes_Referencia');
   const configPorMes = agruparConfigPorMes_(todosConfigs);
+  const avulsosPorMes = agruparPorMes_(todosAvulsos, 'Mes');
 
   const parcelasDoMes = (parcelasPorMes[mesKey] || []).sort((a, b) => {
     return new Date(a.Data_Compra) - new Date(b.Data_Compra);
@@ -228,13 +239,14 @@ function getMonthData(mesKey) {
   }
 
   const totalDebitoMesAtual = parcelasDoMes.reduce((s, p) => s + (Number(p.Valor_Parcela) || 0), 0);
-  const saldoAnterior = getSaldoAnterior_(mesKey, parcelasPorMes, configPorMes);
+  const saldoAnterior = getSaldoAnterior_(mesKey, parcelasPorMes, configPorMes, avulsosPorMes);
   const totalDebitoGeral = totalDebitoMesAtual - saldoAnterior;
 
-  const valorAvulso = Number(cfg.Valor_Avulso) || 0;
+  const avulsos = getAvulsos(mesKey);
+  const totalAvulsos = avulsos.reduce((s, a) => s + (Number(a.Valor) || 0), 0);
   const totalPago = parcelasDoMes.reduce((s, p) => {
     return s + (p.Status_Pago === true ? (Number(p.Valor_Pago) || Number(p.Valor_Parcela) || 0) : 0);
-  }, 0) + valorAvulso;
+  }, 0) + totalAvulsos;
 
   const saldoPendente = totalDebitoGeral - totalPago;
 
@@ -244,8 +256,11 @@ function getMonthData(mesKey) {
     mesPagamento: addMonths_(mesKey, 1),
     mesPagamentoLabel: formatarMes_(addMonths_(mesKey, 1)),
     vencimento: cfg.Vencimento || 10,
-    valorAvulso: cfg.Valor_Avulso === '' ? null : cfg.Valor_Avulso,
-    dataAvulso: cfg.Data_Avulso || '',
+    avulsos: avulsos.map(a => ({
+      id: a.ID,
+      valor: a.Valor,
+      data: a.Data
+    })),
     saldoAnterior: saldoAnterior,
     totalDebitoMesAtual: totalDebitoMesAtual,
     totalDebitoGeral: totalDebitoGeral,
@@ -377,6 +392,46 @@ function setMesConfig(mesKey, dados) {
       dados.dataAvulso !== undefined ? dados.dataAvulso : ''
     ]);
   }
+  return { ok: true };
+}
+
+// ======================= AVULSOS =======================
+
+function getAvulsos(mesKey) {
+  const sheet = getSheet_(ABA_AVULSOS, COLS_AVULSOS);
+  const todos = sheetToObjects_(sheet, COLS_AVULSOS);
+  return todos.filter(a => a.Mes === mesKey).sort((a, b) => {
+    return new Date(a.Data) - new Date(b.Data);
+  });
+}
+
+function addAvulso(dados) {
+  const sheet = getSheet_(ABA_AVULSOS, COLS_AVULSOS);
+  sheet.appendRow([gerarId_(), dados.mes, Number(dados.valor), dados.data]);
+  return { ok: true };
+}
+
+function editarAvulso(id, dados) {
+  const sheet = getSheet_(ABA_AVULSOS, COLS_AVULSOS);
+  const registros = sheetToObjects_(sheet, COLS_AVULSOS);
+  const registro = registros.find(r => r.ID === id);
+  if (!registro) return { ok: false, erro: 'Registro não encontrado.' };
+
+  const colIndex = {};
+  COLS_AVULSOS.forEach((c, i) => colIndex[c] = i + 1);
+
+  if (dados.valor !== undefined) sheet.getRange(registro._row, colIndex['Valor']).setValue(Number(dados.valor));
+  if (dados.data !== undefined) sheet.getRange(registro._row, colIndex['Data']).setValue(dados.data);
+
+  return { ok: true };
+}
+
+function excluirAvulso(id) {
+  const sheet = getSheet_(ABA_AVULSOS, COLS_AVULSOS);
+  const registros = sheetToObjects_(sheet, COLS_AVULSOS);
+  const registro = registros.find(r => r.ID === id);
+  if (!registro) return { ok: false, erro: 'Registro não encontrado.' };
+  sheet.deleteRow(registro._row);
   return { ok: true };
 }
 

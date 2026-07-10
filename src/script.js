@@ -152,17 +152,28 @@ function renderizarMes(dados){
     pendEl.className = 'valor cor-debito';
   }
 
-  if(dados.valorAvulso !== null && dados.valorAvulso !== undefined && dados.valorAvulso !== ''){
-    document.getElementById('input-avulso-valor').value = dados.valorAvulso;
-    document.getElementById('input-avulso-data').value = paraInputDate(dados.dataAvulso);
-    document.getElementById('campos-avulso').classList.add('aberto');
-  } else {
-    document.getElementById('input-avulso-valor').value = '';
-    document.getElementById('input-avulso-data').value = '';
-    document.getElementById('campos-avulso').classList.remove('aberto');
-  }
-
+  renderizarAvulsos(dados.avulsos || []);
   renderizarLista(dados.parcelas);
+}
+
+function renderizarAvulsos(avulsos){
+  const container = document.getElementById('lista-avulsos');
+  if(!avulsos || avulsos.length === 0){
+    container.innerHTML = '<div class="vazio-avulsos">Nenhum pagamento avulso.</div>';
+    return;
+  }
+  container.innerHTML = avulsos.map(function(a){
+    return '<div class="avulso-item" data-id="'+a.id+'">' +
+      '<div class="avulso-info">' +
+        '<span class="avulso-valor">'+formatarMoeda(a.valor)+'</span>' +
+        '<span class="avulso-data">'+formatarDataBR(a.data)+'</span>' +
+      '</div>' +
+      '<div class="avulso-acoes">' +
+        '<button class="mini-btn" onclick="abrirModalAvulso({id:\''+a.id+'\',valor:\''+a.valor+'\',data:\''+a.data+'\'})">Editar</button>' +
+        '<button class="mini-btn avulso-excluir" onclick="excluirAvulso(\''+a.id+'\')">Excluir</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderizarLista(parcelas){
@@ -214,15 +225,62 @@ function salvarVencimento(){
     .catch(erroGenerico);
 }
 
-function alternarAvulso(){
-  document.getElementById('campos-avulso').classList.toggle('aberto');
+// ---------------------------------------------------------------
+// PAGAMENTOS AVULSOS
+// ---------------------------------------------------------------
+let idAvulsoEditando = null;
+
+function abrirModalAvulso(avulso){
+  idAvulsoEditando = avulso ? avulso.id : null;
+  document.getElementById('modal-avulso-titulo').textContent = avulso ? 'Editar Pagamento Avulso' : 'Adicionar Pagamento Avulso';
+  document.getElementById('btn-salvar-avulso').textContent = avulso ? 'Salvar' : 'Adicionar';
+  document.getElementById('avulso-valor').value = avulso ? avulso.valor : '';
+  document.getElementById('avulso-data').value = avulso ? avulso.data : '';
+  document.getElementById('modal-avulso').classList.add('aberto');
+}
+
+function fecharModalAvulso(){
+  document.getElementById('modal-avulso').classList.remove('aberto');
+  document.getElementById('avulso-valor').value = '';
+  document.getElementById('avulso-data').value = '';
+  idAvulsoEditando = null;
 }
 
 function salvarAvulso(){
-  const valor = document.getElementById('input-avulso-valor').value;
-  const data = document.getElementById('input-avulso-data').value;
-  apiPost('setMesConfig', { mes: mesAtual, dados: { valorAvulso: valor, dataAvulso: data } })
-    .then(function(){ mostrarToast('Valor avulso salvo'); carregarMes(); })
+  const valor = document.getElementById('avulso-valor').value;
+  const data = document.getElementById('avulso-data').value;
+
+  if(!valor || !data){
+    mostrarToast('Preencha o valor e a data');
+    return;
+  }
+
+  if(idAvulsoEditando){
+    apiPost('editarAvulso', { id: idAvulsoEditando, dados: { valor: valor, data: data } })
+      .then(function(){
+        mostrarToast('Pagamento avulso atualizado');
+        fecharModalAvulso();
+        carregarMes();
+      })
+      .catch(erroGenerico);
+  } else {
+    apiPost('addAvulso', { mes: mesAtual, valor: valor, data: data })
+      .then(function(){
+        mostrarToast('Pagamento avulso adicionado');
+        fecharModalAvulso();
+        carregarMes();
+      })
+      .catch(erroGenerico);
+  }
+}
+
+function excluirAvulso(id){
+  if(!confirm('Deseja realmente excluir este pagamento avulso?')) return;
+  apiPost('excluirAvulso', { id: id })
+    .then(function(){
+      mostrarToast('Pagamento avulso excluído');
+      carregarMes();
+    })
     .catch(erroGenerico);
 }
 
