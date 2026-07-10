@@ -2,7 +2,7 @@
  * REGISTRO DE DESPESAS — API (Google Apps Script)
  * -------------------------------------------------
  * Este arquivo funciona como uma API JSON. Ele NÃO serve mais o HTML —
- * quem serve o HTML/CSS/JS agora é o GitHub Pages (pasta /site). Este
+ * quem serve o HTML/CSS/JS agora é o GitHub P  ages (pasta /site). Este
  * projeto aqui só recebe requisições (fetch) do site e lê/grava na
  * planilha do Google Sheets.
  *

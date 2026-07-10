@@ -155,20 +155,9 @@
   .form-grid .campo-full{ grid-column: 1/-1; }
   .form-grid .campo-toggle{ grid-column: 1/-1; margin-bottom:0; }
 
-  /* toggle empréstimo */
-  .toggle-emp{ display:inline-flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; font-weight:600; color:var(--ink); user-select:none; }
-  .toggle-emp input{ display:none; }
-  .toggle-slider{
-    width:36px; height:20px; background:var(--line); border-radius:10px;
-    position:relative; transition:background .2s; flex-shrink:0;
-  }
-  .toggle-slider::after{
-    content:''; position:absolute; top:2px; left:2px;
-    width:16px; height:16px; background:#fff; border-radius:50%;
-    transition:transform .2s;
-  }
-  .toggle-emp input:checked + .toggle-slider{ background:var(--brand); }
-  .toggle-emp input:checked + .toggle-slider::after{ transform:translateX(16px); }
+  /* checkbox empréstimo */
+  .check-emp{ display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; font-weight:600; color:var(--ink); text-transform:none; letter-spacing:normal; }
+  .check-emp input{ width:17px; height:17px; accent-color:var(--brand); cursor:pointer; }
 
   /* filtros */
   .filtros{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
