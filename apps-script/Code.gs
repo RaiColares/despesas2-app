@@ -306,14 +306,14 @@ function addCompra(dados) {
   const valorParcela = Number(dados.valorParcela);
   const valorTotal = Number(dados.valorTotal);
 
+  const ehEmprestimo = dados.ehEmprestimo === true || dados.ehEmprestimo === 'true';
   const dataCompra = new Date(dados.dataCompra);
   const diaCompra = dataCompra.getDate();
-  const offsetBase = (diaCompra >= 3 && diaCompra <= 28) ? 0 : 1;
+  const offsetBase = ehEmprestimo ? 1 : ((diaCompra >= 3 && diaCompra <= 28) ? 0 : 1);
 
   const linhas = [];
   for (let i = 1; i <= totalParcelas; i++) {
     const mesRef = addMonths_(mesCompra, offsetBase + i - 1);
-    const ehEmprestimo = dados.ehEmprestimo === true || dados.ehEmprestimo === 'true';
     linhas.push([
       gerarId_(), idCompra, dados.descricao, dados.dataCompra, valorTotal,
       i, totalParcelas, valorParcela, mesRef,
