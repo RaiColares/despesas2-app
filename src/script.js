@@ -150,13 +150,13 @@ function renderizarMes(dados){
 
   const pendEl = document.getElementById('val-pendente');
   const pendRotulo = document.getElementById('lbl-pendente-rotulo');
-  if(dados.saldoPendente >= 0){
+  if(dados.totalPago > dados.totalDebitoGeral){
     pendRotulo.textContent = 'Saldo Pendente';
-    pendEl.textContent = formatarMoeda(dados.saldoPendente);
+    pendEl.textContent = formatarMoeda(dados.totalPago - dados.totalDebitoGeral);
     pendEl.className = 'valor cor-saldo';
   } else {
     pendRotulo.textContent = 'Débito Pendente';
-    pendEl.textContent = formatarMoeda(Math.abs(dados.saldoPendente));
+    pendEl.textContent = formatarMoeda(dados.totalDebitoGeral - dados.totalPago);
     pendEl.className = 'valor cor-debito';
   }
 

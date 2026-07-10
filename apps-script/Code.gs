@@ -193,7 +193,7 @@ function getSaldoAnterior_(mesAlvo, parcelasPorMes, configPorMes, avulsosPorMes)
       return s + (p.Status_Pago === true ? (Number(p.Valor_Pago) || Number(p.Valor_Parcela) || 0) : 0);
     }, 0) + totalAvulsos;
 
-    saldo = totalDebitoGeral - totalPago;
+    saldo = totalPago - totalDebitoGeral;
     mesAtual = addMonths_(mesAtual, 1);
   }
   return saldo;
@@ -306,9 +306,13 @@ function addCompra(dados) {
   const valorParcela = Number(dados.valorParcela);
   const valorTotal = Number(dados.valorTotal);
 
+  const dataCompra = new Date(dados.dataCompra);
+  const diaCompra = dataCompra.getDate();
+  const offsetBase = (diaCompra >= 3 && diaCompra <= 28) ? 0 : 1;
+
   const linhas = [];
   for (let i = 1; i <= totalParcelas; i++) {
-    const mesRef = addMonths_(mesCompra, i);
+    const mesRef = addMonths_(mesCompra, offsetBase + i - 1);
     const ehEmprestimo = dados.ehEmprestimo === true || dados.ehEmprestimo === 'true';
     linhas.push([
       gerarId_(), idCompra, dados.descricao, dados.dataCompra, valorTotal,
