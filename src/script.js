@@ -37,6 +37,11 @@ let idParaExcluir = null;
 let idParaEditar = null;
 let filtroAtivo = 'tudo';
 
+const NOMES_MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
 function mesKeyHoje(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
@@ -135,7 +140,7 @@ function renderizarMes(dados){
   const saldoEl = document.getElementById('val-saldo-anterior');
   const saldoRotulo = document.getElementById('lbl-saldo-rotulo');
   if(dados.saldoAnterior >= 0){
-    saldoRotulo.textContent = 'Saldo do Mês Anterior';
+    saldoRotulo.textContent = 'Crédito do Mês Anterior';
     saldoEl.textContent = formatarMoeda(dados.saldoAnterior);
     saldoEl.className = 'valor cor-saldo';
   } else {
@@ -151,7 +156,7 @@ function renderizarMes(dados){
   const pendEl = document.getElementById('val-pendente');
   const pendRotulo = document.getElementById('lbl-pendente-rotulo');
   if(dados.totalPago > dados.totalDebitoGeral){
-    pendRotulo.textContent = 'Saldo Pendente';
+    pendRotulo.textContent = 'Crédito Pendente';
     pendEl.textContent = formatarMoeda(dados.totalPago - dados.totalDebitoGeral);
     pendEl.className = 'valor cor-saldo';
   } else {
@@ -214,26 +219,25 @@ function renderizarLista(parcelas){
     var badges = '';
     if(p.finalizado) badges += '<span class="badge-finalizado">Finalizado</span> ';
     if(p.ehEmprestimo) badges += '<span class="badge-emprestimo">Empréstimo</span>';
+    var pagoInfo = '';
+    if(p.pago){
+      pagoInfo = '<span class="r-pago-info" title="Pago em '+formatarDataBR(p.dataPagamento)+' - '+formatarMoeda(p.valorPago)+'">' +
+        '<button class="mini-btn" onclick="alterarValorPago(\''+p.id+'\')" title="Alterar valor pago">'+formatarMoeda(p.valorPago)+'</button></span>';
+    }
     return '<div class="'+pagoClasse+'" data-id="'+p.id+'">' +
-      '<div class="principal">' +
-        '<div class="desc">'+escapeHtml(p.descricao)+' '+badges+'</div>' +
-        '<div class="meta">'+formatarDataBR(p.dataCompra)+' &middot; Parcela '+p.parcelaAtual+'/'+p.totalParcelas+'</div>' +
-      '</div>' +
-      '<div class="valores">' +
-        '<div class="valor-parcela">'+formatarMoeda(p.valorParcela)+'</div>' +
-      '</div>' +
-      '<div class="linha-acoes">' +
+      '<span class="r-data">'+formatarDataBR(p.dataCompra)+'</span>' +
+      '<span class="r-desc">'+escapeHtml(p.descricao)+' '+badges+'</span>' +
+      '<span class="r-valor-total">'+formatarMoeda(p.valorTotal)+'</span>' +
+      '<span class="r-parcelas">'+p.parcelaAtual+'/'+p.totalParcelas+'</span>' +
+      '<span class="r-valor-parcela">'+formatarMoeda(p.valorParcela)+'</span>' +
+      '<span class="r-check">' +
         '<label class="check-pago">' +
-          '<input type="checkbox" '+(p.pago?'checked':'')+' onchange="marcarPago(\''+p.id+'\', this.checked)"> Pago' +
+          '<input type="checkbox" '+(p.pago?'checked':'')+' onchange="marcarPago(\''+p.id+'\', this.checked)">' +
         '</label>' +
-        (p.pago ? (
-          '<span class="campo-inline">Pago em '+formatarDataBR(p.dataPagamento)+'</span>' +
-          '<span class="campo-inline">Valor: '+formatarMoeda(p.valorPago)+
-            ' <button class="mini-btn" onclick="alterarValorPago(\''+p.id+'\')">Alterar valor</button></span>'
-        ) : '') +
-        '<button class="icon-btn" onclick="abrirEditar(\''+p.id+'\')">Editar</button>' +
-        '<button class="icon-btn excluir" onclick="pedirExclusao(\''+p.id+'\')">Excluir</button>' +
-      '</div>' +
+      '</span>' +
+      '<span class="r-pago-valor">'+pagoInfo+'</span>' +
+      '<span class="r-edit"><button class="icon-btn" onclick="abrirEditar(\''+p.id+'\')">Editar</button></span>' +
+      '<span class="r-excluir"><button class="icon-btn excluir" onclick="pedirExclusao(\''+p.id+'\')">Excluir</button></span>' +
     '</div>';
   }).join('');
 }
@@ -372,6 +376,16 @@ function marcarPago(id, pago){
     .catch(erroGenerico);
 }
 
+function marcarTodosPagos(){
+  if(!confirm('Marcar todas as parcelas não pagas deste mês como pagas?')) return;
+  apiPost('marcarTodosPagos', { mes: mesAtual })
+    .then(function(){
+      mostrarToast('Todas as parcelas foram marcadas como pagas');
+      carregarMes();
+    })
+    .catch(erroGenerico);
+}
+
 function alterarValorPago(id){
   const novoValor = prompt('Novo valor pago:');
   if(novoValor === null || novoValor === '') return;
@@ -383,13 +397,35 @@ function alterarValorPago(id){
 // ---------------------------------------------------------------
 // EDITAR
 // ---------------------------------------------------------------
+function gerarOpcoesMes(){
+  const select = document.getElementById('edit-mes-primeira-parcela');
+  const [ano, mes] = mesAtual.split('-').map(Number);
+  select.innerHTML = '';
+  for(var i = -3; i <= 24; i++){
+    const d = new Date(ano, (mes-1) + i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const key = y + '-' + m;
+    const label = NOMES_MESES[d.getMonth()] + ' ' + y;
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    select.appendChild(opt);
+  }
+}
+
 function abrirEditar(id){
   const p = dadosMes.parcelas.find(function(x){ return x.id === id; });
   if(!p) return;
   idParaEditar = id;
+  gerarOpcoesMes();
   document.getElementById('edit-descricao').value = p.descricao;
+  document.getElementById('edit-valor-total').value = p.valorTotal;
+  document.getElementById('edit-total-parcelas').value = p.totalParcelas;
   document.getElementById('edit-valor-parcela').value = p.valorParcela;
   document.getElementById('edit-data-compra').value = paraInputDate(p.dataCompra);
+  document.getElementById('edit-emprestimo').checked = p.ehEmprestimo;
+  document.getElementById('edit-mes-primeira-parcela').value = p.mesReferencia;
   document.getElementById('modal-editar').classList.add('aberto');
 }
 
@@ -398,13 +434,36 @@ function fecharModalEditar(){
   idParaEditar = null;
 }
 
+function recalcularParcelaEdit(){
+  const total = Number(document.getElementById('edit-valor-total').value) || 0;
+  const parcelas = Number(document.getElementById('edit-total-parcelas').value) || 1;
+  if(total > 0 && parcelas > 0){
+    document.getElementById('edit-valor-parcela').value = (total/parcelas).toFixed(2);
+  }
+}
+
 function salvarEdicao(){
   if(!confirm('Deseja realmente editar este registro?')) return;
+  const p = dadosMes.parcelas.find(function(x){ return x.id === idParaEditar; });
+  if(!p) return;
   const descricao = document.getElementById('edit-descricao').value.trim();
+  const valorTotal = document.getElementById('edit-valor-total').value;
+  const totalParcelas = document.getElementById('edit-total-parcelas').value;
   const valorParcela = document.getElementById('edit-valor-parcela').value;
   const dataCompra = document.getElementById('edit-data-compra').value;
-  apiPost('editarParcela', { id: idParaEditar, dados: { descricao: descricao, valorParcela: valorParcela, dataCompra: dataCompra } })
-    .then(function(){
+  const mesPrimeiraParcela = document.getElementById('edit-mes-primeira-parcela').value;
+  const ehEmprestimo = document.getElementById('edit-emprestimo').checked;
+
+  apiPost('editarCompra', {
+    idCompra: p.idCompra,
+    descricao: descricao,
+    valorTotal: valorTotal,
+    totalParcelas: totalParcelas,
+    valorParcela: valorParcela,
+    dataCompra: dataCompra,
+    mesPrimeiraParcela: mesPrimeiraParcela,
+    ehEmprestimo: ehEmprestimo
+  }).then(function(){
       mostrarToast('Registro atualizado');
       fecharModalEditar();
       carregarMes();
@@ -417,18 +476,44 @@ function salvarEdicao(){
 // ---------------------------------------------------------------
 function pedirExclusao(id){
   idParaExcluir = id;
+  const p = dadosMes.parcelas.find(function(x){ return x.id === id; });
+  var temMaisParcelas = p && Number(p.totalParcelas) > 1;
+
   document.getElementById('modal-confirmar-titulo').textContent = 'Excluir registro';
   document.getElementById('modal-confirmar-texto').textContent = 'Deseja realmente excluir este registro? Essa ação não pode ser desfeita.';
-  const btn = document.getElementById('modal-confirmar-btn');
-  btn.textContent = 'Excluir';
-  btn.onclick = confirmarExclusao;
+
+  var acoes = document.getElementById('modal-confirmar-acoes');
+  if(temMaisParcelas){
+    acoes.innerHTML =
+      '<button class="btn btn-secundario" onclick="fecharModalConfirmar()">Cancelar</button>' +
+      '<button class="btn btn-perigo" onclick="confirmarExclusaoParcela()">Apenas esta parcela</button>' +
+      '<button class="btn btn-perigo" onclick="confirmarExclusaoTodas()">Esta e todas as próximas</button>';
+  } else {
+    acoes.innerHTML =
+      '<button class="btn btn-secundario" onclick="fecharModalConfirmar()">Cancelar</button>' +
+      '<button class="btn btn-perigo" onclick="confirmarExclusaoParcela()">Excluir</button>';
+  }
   document.getElementById('modal-confirmar').classList.add('aberto');
 }
 
-function confirmarExclusao(){
+function confirmarExclusaoParcela(){
   apiPost('excluirParcela', { id: idParaExcluir })
     .then(function(){
       mostrarToast('Registro excluído');
+      fecharModalConfirmar();
+      carregarMes();
+    })
+    .catch(erroGenerico);
+}
+
+function confirmarExclusaoTodas(){
+  apiPost('excluirParcelasApartir', { id: idParaExcluir })
+    .then(function(resp){
+      if(resp.ok){
+        mostrarToast(resp.excluidas + ' registro(s) excluído(s)');
+      } else {
+        mostrarToast(resp.erro || 'Erro ao excluir');
+      }
       fecharModalConfirmar();
       carregarMes();
     })

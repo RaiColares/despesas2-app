@@ -72,8 +72,12 @@ function executarAcao_(action, payload) {
         return updateParcela(payload.id, payload.mudancas || {});
       case 'editarParcela':
         return editarParcela(payload.id, payload.dados || {});
+      case 'editarCompra':
+        return editarCompra(payload);
       case 'excluirParcela':
         return excluirParcela(payload.id);
+      case 'excluirParcelasApartir':
+        return excluirParcelasApartir(payload.id);
       case 'setMesConfig':
         return setMesConfig(payload.mes, payload.dados || {});
       case 'addAvulso':
@@ -82,6 +86,8 @@ function executarAcao_(action, payload) {
         return editarAvulso(payload.id, payload.dados || {});
       case 'excluirAvulso':
         return excluirAvulso(payload.id);
+      case 'marcarTodosPagos':
+        return marcarTodosPagos(payload.mes);
       case 'debugInfo':
         return { ok: true, dados: debugInfo() };
       default:
@@ -291,7 +297,8 @@ function getMonthData(mesKey) {
       valorPago: p.Valor_Pago,
       dataPagamento: p.Data_Pagamento,
       finalizado: p.Finalizado === true,
-      ehEmprestimo: p.EhEmprestimo === true
+      ehEmprestimo: p.EhEmprestimo === true,
+      mesReferencia: p.Mes_Referencia
     }))
   };
 }
@@ -322,6 +329,40 @@ function addCompra(dados) {
   }
   sheet.getRange(sheet.getLastRow() + 1, 1, linhas.length, COLS_PARCELAS.length).setValues(linhas);
   return { ok: true, idCompra: idCompra };
+}
+
+function editarCompra(dados) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const todas = sheetToObjects_(sheet, COLS_PARCELAS);
+  const existentes = todas.filter(function(p) { return p.ID_Compra === dados.idCompra; });
+
+  if (existentes.length === 0) return { ok: false, erro: 'Registro não encontrado.' };
+
+  // Excluir linhas existentes (de baixo para cima)
+  existentes.sort(function(a, b) { return b._row - a._row; });
+  existentes.forEach(function(p) { sheet.deleteRow(p._row); });
+
+  // Criar novas parcelas
+  const totalParcelas = Number(dados.totalParcelas) || 1;
+  const valorParcela = Number(dados.valorParcela);
+  const valorTotal = Number(dados.valorTotal);
+  const ehEmprestimo = dados.ehEmprestimo === true || dados.ehEmprestimo === 'true';
+  const mesBase = dados.mesPrimeiraParcela || mesKeyFromDate_(dados.dataCompra);
+
+  var linhas = [];
+  for (var i = 1; i <= totalParcelas; i++) {
+    var mesRef = addMonths_(mesBase, i - 1);
+    linhas.push([
+      gerarId_(), dados.idCompra, dados.descricao, dados.dataCompra, valorTotal,
+      i, totalParcelas, valorParcela, mesRef,
+      false, '', '', false, ehEmprestimo
+    ]);
+  }
+  if (linhas.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, linhas.length, COLS_PARCELAS.length).setValues(linhas);
+  }
+
+  return { ok: true };
 }
 
 function encontrarLinhaPorId_(sheet, id) {
@@ -387,6 +428,49 @@ function excluirParcela(id) {
   if (!linha) return { ok: false, erro: 'Registro não encontrado.' };
   sheet.deleteRow(linha._row);
   return { ok: true };
+}
+
+function excluirParcelasApartir(id) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const linha = encontrarLinhaPorId_(sheet, id);
+  if (!linha) return { ok: false, erro: 'Registro não encontrado.' };
+
+  const idCompra = linha.ID_Compra;
+  const parcelaAtual = Number(linha.Parcela_Atual);
+  const todas = sheetToObjects_(sheet, COLS_PARCELAS);
+  const aExcluir = todas.filter(function(p) {
+    return p.ID_Compra === idCompra && Number(p.Parcela_Atual) >= parcelaAtual;
+  });
+
+  // Excluir de baixo para cima para não bagunçar os índices
+  aExcluir.sort(function(a, b) { return b._row - a._row; });
+  aExcluir.forEach(function(p) { sheet.deleteRow(p._row); });
+
+  return { ok: true, excluidas: aExcluir.length };
+}
+
+function marcarTodosPagos(mesKey) {
+  const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
+  const todas = sheetToObjects_(sheet, COLS_PARCELAS);
+  const doMes = todas.filter(function(p) {
+    return p.Mes_Referencia === mesKey && p.Status_Pago !== true;
+  });
+
+  const colIndex = {};
+  COLS_PARCELAS.forEach(function(c, i) { colIndex[c] = i + 1; });
+
+  var contagem = 0;
+  doMes.forEach(function(p) {
+    sheet.getRange(p._row, colIndex['Status_Pago']).setValue(true);
+    sheet.getRange(p._row, colIndex['Valor_Pago']).setValue(Number(p.Valor_Parcela));
+    sheet.getRange(p._row, colIndex['Data_Pagamento']).setValue(new Date());
+    if (Number(p.Parcela_Atual) === Number(p.Total_Parcelas)) {
+      sheet.getRange(p._row, colIndex['Finalizado']).setValue(true);
+    }
+    contagem++;
+  });
+
+  return { ok: true, marcadas: contagem };
 }
 
 // ======================= CONFIGURAÇÃO DO MÊS =======================

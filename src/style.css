@@ -171,35 +171,50 @@
   .filtro-btn.ativo{ background:var(--brand); color:#fff; border-color:var(--brand); }
 
   /* tabela / lista */
-  .lista-titulo{ font-size:16px; font-weight:600; color:var(--brand-dark); margin: 4px 0 10px; }
+  .lista-titulo{
+    font-size:16px; font-weight:600; color:var(--brand-dark);
+    margin: 4px 0 10px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .btn-marcar-todos{
+    background: var(--pago); color:#fff; border:none; border-radius:20px;
+    padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .btn-marcar-todos:hover{ opacity:.85; }
   .registro{
-    background: var(--paper); border:1px solid var(--line); border-radius: 12px;
-    padding: 14px 16px; margin-bottom:10px; box-shadow: var(--shadow);
-    display:grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items:center;
+    background: var(--paper); border:1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin-bottom:6px; box-shadow: var(--shadow);
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
+    font-size:13px;
   }
-  .registro .principal{ min-width:0; }
-  .registro .desc{ font-weight:600; font-size:14.5px; }
-  .registro .meta{ font-size:12.5px; color: var(--ink-soft); margin-top:2px; }
-  .registro .valores{ text-align:right; }
-  .registro .valor-parcela{ font-family:'Fraunces',serif; font-weight:600; font-size:16px; }
-  .registro .linha-acoes{
-    grid-column: 1/-1; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-    border-top: 1px dashed var(--line); padding-top:10px; margin-top:2px;
-  }
-  .check-pago{ display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; }
-  .check-pago input{ width:17px; height:17px; accent-color: var(--pago); }
+  .registro > span{ display:inline-flex; align-items:center; }
+  .r-data{ min-width:85px; font-size:12.5px; color:var(--ink-soft); }
+  .r-desc{ flex:1; min-width:120px; font-weight:600; font-size:13.5px; }
+  .r-valor-total{ min-width:80px; text-align:right; font-family:'Fraunces',serif; font-weight:600; font-size:13px; color:var(--ink-soft); }
+  .r-parcelas{ min-width:45px; text-align:center; font-size:12px; color:var(--ink-soft); }
+  .r-valor-parcela{ min-width:75px; text-align:right; font-family:'Fraunces',serif; font-weight:600; font-size:14px; }
+  .r-check{ min-width:30px; display:flex; align-items:center; }
+  .r-pago-valor{ min-width:70px; }
+  .r-pago-valor .mini-btn{ font-size:11px; padding:2px 6px; background: var(--pago); color:#fff; border:none; }
+  .r-pago-valor .mini-btn:hover{ opacity:.85; }
+  .r-edit{ min-width:50px; }
+  .r-excluir{ min-width:55px; }
+  .check-pago{ display:flex; align-items:center; gap:6px; }
+  .check-pago input{ width:16px; height:16px; accent-color: var(--pago); cursor:pointer; margin:0; }
   .registro.pago{ border-color: #cfe3d5; background: #FBFEFC; }
+  .registro.pago .r-valor-parcela{ color: var(--pago); }
   .badge-finalizado{
-    font-size:11px; background: var(--pago); color:#fff; padding:2px 8px; border-radius:20px; font-weight:600;
+    font-size:10px; background: var(--pago); color:#fff; padding:1px 6px; border-radius:20px; font-weight:600;
+    vertical-align:middle; margin-left:4px;
   }
   .badge-emprestimo{
-    font-size:11px; background: var(--gold); color:#fff; padding:2px 8px; border-radius:20px; font-weight:600;
+    font-size:10px; background: var(--gold); color:#fff; padding:1px 6px; border-radius:20px; font-weight:600;
+    vertical-align:middle; margin-left:4px;
   }
-  .campo-inline{ display:flex; align-items:center; gap:6px; font-size:12.5px; }
-  .campo-inline input{ padding:5px 7px; font-size:12.5px; width:110px; }
   .icon-btn{
-    background:none; border:1px solid var(--line); border-radius:7px; padding:6px 10px;
-    font-size:12.5px; cursor:pointer; color: var(--ink-soft); font-weight:600;
+    background:none; border:1px solid var(--line); border-radius:6px; padding:5px 8px;
+    font-size:12px; cursor:pointer; color: var(--ink-soft); font-weight:600;
+    font-family:'Inter',sans-serif;
   }
   .icon-btn:hover{ color: var(--ink); border-color: var(--ink-soft); }
   .icon-btn.excluir:hover{ color: var(--debito); border-color: var(--debito); }
@@ -215,6 +230,7 @@
     background:#fff; border-radius: var(--radius); padding: 26px 26px 22px;
     max-width: 400px; width:100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
   }
+  .modal-caixa-wide{ max-width: 520px; }
   .modal-caixa h3{ margin:0 0 10px; font-size:18px; color:var(--brand-dark);}
   .modal-caixa p{ font-size:14px; color: var(--ink-soft); margin:0 0 20px; line-height:1.5;}
   .modal-acoes{ display:flex; gap:10px; justify-content:flex-end; }
@@ -233,6 +249,13 @@
 
   @media (max-width:560px){
     .nav-mes .centro .ref{ font-size:21px; }
-    .registro{ grid-template-columns: 1fr; }
-    .registro .valores{ text-align:left; }
+    .registro{ gap:6px 10px; padding:8px 10px; }
+    .r-data{ min-width:70px; }
+    .r-desc{ min-width:80px; font-size:13px; }
+    .r-valor-total{ min-width:60px; font-size:12px; }
+    .r-parcelas{ min-width:35px; font-size:11px; }
+    .r-valor-parcela{ min-width:60px; font-size:13px; }
+    .r-pago-valor{ min-width:50px; }
+    .btn-marcar-todos{ font-size:11px; padding:4px 10px; }
+    .lista-titulo{ flex-wrap:wrap; gap:6px; }
   }
