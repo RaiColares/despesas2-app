@@ -49,6 +49,14 @@
   .login-card p{ color: var(--ink-soft); font-size: 14px; margin: 0 0 28px; }
   .campo{ text-align:left; margin-bottom: 16px; }
   .campo label{ display:block; font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color: var(--ink-soft); margin-bottom:6px;}
+  .btn-olho{
+    background:none; border:none; cursor:pointer; font-size:20px;
+    padding:0 10px; line-height:1; position:relative; z-index:1;
+    opacity:.5; transition:opacity .15s;
+  }
+  .btn-olho:hover{ opacity:1; }
+  .input-senha{ display:flex; align-items:center; }
+  .input-senha input{ flex:1; padding-right:40px; }
   input, select{
     width:100%; padding: 11px 13px; border-radius: 9px;
     border: 1px solid var(--line); background:#fff; color:var(--ink);

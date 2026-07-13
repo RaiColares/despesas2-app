@@ -68,6 +68,11 @@ function fazerLogin(){
     .catch(erroGenerico);
 }
 
+function alternarSenha(){
+  const input = document.getElementById('login-senha');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
 function sair(){
   document.getElementById('app').style.display = 'none';
   document.getElementById('tela-login').style.display = 'flex';

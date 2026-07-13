@@ -22,7 +22,10 @@
     </div>
     <div class="campo">
       <label for="login-senha">Senha</label>
-      <input id="login-senha" type="password" autocomplete="current-password">
+      <div class="input-senha">
+        <input id="login-senha" type="password" autocomplete="current-password">
+        <button class="btn-olho" onclick="alternarSenha()" type="button" aria-label="Mostrar senha">👁</button>
+      </div>
     </div>
     <button class="btn btn-primary" onclick="fazerLogin()">Entrar</button>
     <div class="erro-msg" id="login-erro"></div>
