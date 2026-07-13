@@ -214,7 +214,18 @@ function renderizarLista(parcelas){
     return;
   }
 
-  container.innerHTML = filtradas.map(function(p){
+  container.innerHTML =
+    '<div class="registro-header">' +
+      '<span class="r-data">Data</span>' +
+      '<span class="r-desc">Descrição</span>' +
+      '<span class="r-valor-total">Valor Total</span>' +
+      '<span class="r-parcelas">Parcelas</span>' +
+      '<span class="r-valor-parcela">Valor Parc.</span>' +
+      '<span class="r-check">Pago</span>' +
+      '<span class="r-edit"></span>' +
+      '<span class="r-excluir"></span>' +
+    '</div>' +
+    filtradas.map(function(p){
     const pagoClasse = p.pago ? 'registro pago' : 'registro';
     var badges = '';
     if(p.finalizado) badges += '<span class="badge-finalizado">Finalizado</span> ';
