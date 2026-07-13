@@ -189,6 +189,7 @@
     font-family:'Inter',sans-serif;
   }
   .btn-marcar-todos:hover{ opacity:.85; }
+  .btn-desmarcar{ background: var(--ink-soft); }
   .registro-header{
     background: var(--bg);
     border: 1px solid var(--line);

@@ -87,7 +87,7 @@ function executarAcao_(action, payload) {
       case 'excluirAvulso':
         return excluirAvulso(payload.id);
       case 'marcarTodosPagos':
-        return marcarTodosPagos(payload.mes);
+        return marcarTodosPagos(payload.mes, payload.pago !== false);
       case 'debugInfo':
         return { ok: true, dados: debugInfo() };
       default:
@@ -449,24 +449,29 @@ function excluirParcelasApartir(id) {
   return { ok: true, excluidas: aExcluir.length };
 }
 
-function marcarTodosPagos(mesKey) {
+function marcarTodosPagos(mesKey, pago) {
   const sheet = getSheet_(ABA_PARCELAS, COLS_PARCELAS);
   const todas = sheetToObjects_(sheet, COLS_PARCELAS);
-  const doMes = todas.filter(function(p) {
-    return p.Mes_Referencia === mesKey && p.Status_Pago !== true;
-  });
+  var doMes;
+  if(pago){
+    doMes = todas.filter(function(p) { return p.Mes_Referencia === mesKey && p.Status_Pago !== true; });
+  } else {
+    doMes = todas.filter(function(p) { return p.Mes_Referencia === mesKey && p.Status_Pago === true; });
+  }
 
   const colIndex = {};
   COLS_PARCELAS.forEach(function(c, i) { colIndex[c] = i + 1; });
 
   var contagem = 0;
   doMes.forEach(function(p) {
-    sheet.getRange(p._row, colIndex['Status_Pago']).setValue(true);
-    sheet.getRange(p._row, colIndex['Valor_Pago']).setValue(Number(p.Valor_Parcela));
-    sheet.getRange(p._row, colIndex['Data_Pagamento']).setValue(new Date());
-    if (Number(p.Parcela_Atual) === Number(p.Total_Parcelas)) {
-      sheet.getRange(p._row, colIndex['Finalizado']).setValue(true);
-    }
+    var pagoValor = pago ? (Number(p.Valor_Parcela)) : '';
+    var dataPagamento = pago ? new Date() : '';
+    var finalizado = pago ? (Number(p.Parcela_Atual) === Number(p.Total_Parcelas)) : false;
+
+    sheet.getRange(p._row, colIndex['Status_Pago']).setValue(pago);
+    sheet.getRange(p._row, colIndex['Valor_Pago']).setValue(pagoValor);
+    sheet.getRange(p._row, colIndex['Data_Pagamento']).setValue(dataPagamento);
+    sheet.getRange(p._row, colIndex['Finalizado']).setValue(finalizado);
     contagem++;
   });
 

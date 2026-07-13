@@ -214,6 +214,16 @@ function renderizarLista(parcelas){
     filtradas = parcelas.filter(function(p){ return p.ehEmprestimo; });
   }
 
+  var todasPagas = filtradas.every(function(p){ return p.pago; });
+  var btn = document.getElementById('btn-marcar-todos');
+  if(todasPagas){
+    btn.textContent = '✗ Desmarcar todos como pago';
+    btn.className = 'btn-marcar-todos btn-desmarcar';
+  } else {
+    btn.textContent = '✓ Marcar todos como pago';
+    btn.className = 'btn-marcar-todos';
+  }
+
   if(!filtradas || filtradas.length === 0){
     container.innerHTML = '<div class="vazio">Nenhum registro para este mês ainda.</div>';
     return;
@@ -396,8 +406,14 @@ function marcarPago(id, pago){
 }
 
 function marcarTodosPagos(){
-  if(!confirm('Marcar todas as parcelas não pagas deste mês como pagas?')) return;
-  apiPost('marcarTodosPagos', { mes: mesAtual })
+  var btn = document.getElementById('btn-marcar-todos');
+  var marcar = btn.textContent.indexOf('Marcar') !== -1;
+  if(marcar){
+    if(!confirm('Marcar todas as parcelas não pagas deste mês como pagas?')) return;
+  } else {
+    if(!confirm('Desmarcar todas as parcelas pagas deste mês?')) return;
+  }
+  apiPost('marcarTodosPagos', { mes: mesAtual, pago: marcar })
     .then(function(resp){
       if(resp.ok){
         mostrarToast(resp.marcadas + ' parcela(s) marcada(s) como paga(s)');
