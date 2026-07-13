@@ -235,7 +235,7 @@ function renderizarLista(parcelas){
           '<input type="checkbox" '+(p.pago?'checked':'')+' onchange="marcarPago(\''+p.id+'\', this.checked)">' +
         '</label>' +
       '</span>' +
-      '<span class="r-pago-valor">'+pagoInfo+'</span>' +
+      (pagoInfo ? '<span class="r-pago-valor">'+pagoInfo+'</span>' : '') +
       '<span class="r-edit"><button class="icon-btn" onclick="abrirEditar(\''+p.id+'\')">Editar</button></span>' +
       '<span class="r-excluir"><button class="icon-btn excluir" onclick="pedirExclusao(\''+p.id+'\')">Excluir</button></span>' +
     '</div>';
@@ -372,16 +372,24 @@ function registrarCompra(){
 // ---------------------------------------------------------------
 function marcarPago(id, pago){
   apiPost('updateParcela', { id: id, mudancas: { pago: pago } })
-    .then(function(){ carregarMes(); })
+    .then(function(resp){
+      if(!resp.ok) mostrarToast(resp.erro || 'Erro ao atualizar');
+      carregarMes();
+    })
     .catch(erroGenerico);
 }
 
 function marcarTodosPagos(){
   if(!confirm('Marcar todas as parcelas não pagas deste mês como pagas?')) return;
   apiPost('marcarTodosPagos', { mes: mesAtual })
-    .then(function(){
-      mostrarToast('Todas as parcelas foram marcadas como pagas');
-      carregarMes();
+    .then(function(resp){
+      if(resp.ok){
+        mostrarToast(resp.marcadas + ' parcela(s) marcada(s) como paga(s)');
+        carregarMes();
+      } else {
+        mostrarToast(resp.erro || 'Erro ao marcar pagamentos');
+        carregarMes();
+      }
     })
     .catch(erroGenerico);
 }
@@ -397,35 +405,17 @@ function alterarValorPago(id){
 // ---------------------------------------------------------------
 // EDITAR
 // ---------------------------------------------------------------
-function gerarOpcoesMes(){
-  const select = document.getElementById('edit-mes-primeira-parcela');
-  const [ano, mes] = mesAtual.split('-').map(Number);
-  select.innerHTML = '';
-  for(var i = -3; i <= 24; i++){
-    const d = new Date(ano, (mes-1) + i, 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const key = y + '-' + m;
-    const label = NOMES_MESES[d.getMonth()] + ' ' + y;
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = label;
-    select.appendChild(opt);
-  }
-}
-
 function abrirEditar(id){
   const p = dadosMes.parcelas.find(function(x){ return x.id === id; });
   if(!p) return;
   idParaEditar = id;
-  gerarOpcoesMes();
   document.getElementById('edit-descricao').value = p.descricao;
   document.getElementById('edit-valor-total').value = p.valorTotal;
   document.getElementById('edit-total-parcelas').value = p.totalParcelas;
   document.getElementById('edit-valor-parcela').value = p.valorParcela;
   document.getElementById('edit-data-compra').value = paraInputDate(p.dataCompra);
   document.getElementById('edit-emprestimo').checked = p.ehEmprestimo;
-  document.getElementById('edit-mes-primeira-parcela').value = p.mesReferencia;
+  document.getElementById('edit-data-primeira-parcela').value = p.dataCompra ? p.dataCompra.slice(0,10) : '';
   document.getElementById('modal-editar').classList.add('aberto');
 }
 
@@ -451,7 +441,7 @@ function salvarEdicao(){
   const totalParcelas = document.getElementById('edit-total-parcelas').value;
   const valorParcela = document.getElementById('edit-valor-parcela').value;
   const dataCompra = document.getElementById('edit-data-compra').value;
-  const mesPrimeiraParcela = document.getElementById('edit-mes-primeira-parcela').value;
+  const dataPrimeiraParcela = document.getElementById('edit-data-primeira-parcela').value;
   const ehEmprestimo = document.getElementById('edit-emprestimo').checked;
 
   apiPost('editarCompra', {
@@ -461,12 +451,17 @@ function salvarEdicao(){
     totalParcelas: totalParcelas,
     valorParcela: valorParcela,
     dataCompra: dataCompra,
-    mesPrimeiraParcela: mesPrimeiraParcela,
+    mesPrimeiraParcela: dataPrimeiraParcela,
     ehEmprestimo: ehEmprestimo
-  }).then(function(){
-      mostrarToast('Registro atualizado');
-      fecharModalEditar();
-      carregarMes();
+  }).then(function(resp){
+      if(resp.ok){
+        mostrarToast('Registro atualizado');
+        fecharModalEditar();
+        carregarMes();
+      } else {
+        mostrarToast(resp.erro || 'Erro ao editar');
+        fecharModalEditar();
+      }
     })
     .catch(erroGenerico);
 }
@@ -498,8 +493,12 @@ function pedirExclusao(id){
 
 function confirmarExclusaoParcela(){
   apiPost('excluirParcela', { id: idParaExcluir })
-    .then(function(){
-      mostrarToast('Registro excluído');
+    .then(function(resp){
+      if(resp.ok){
+        mostrarToast('Registro excluído');
+      } else {
+        mostrarToast(resp.erro || 'Erro ao excluir');
+      }
       fecharModalConfirmar();
       carregarMes();
     })
